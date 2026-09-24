@@ -1,0 +1,122 @@
+openapi: 3.0.3
+
+info:
+  title: Pricing Service API
+  version: 1.0.0
+  description: API for retrieving the applicable price for a product and brand at a given date.
+
+paths:
+  /api/v1/prices:
+    get:
+      summary: Get applicable price
+      operationId: getApplicablePrice
+      parameters:
+        - name: applicationDate
+          in: query
+          required: true
+          description: Date and time for which the applicable price is requested.
+          schema:
+            type: string
+            format: date-time
+          example: "2020-06-14T16:00:00"
+
+        - name: productId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          example: 35455
+
+        - name: brandId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          example: 1
+
+      responses:
+        "200":
+          description: Applicable price found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceResponse"
+
+        "400":
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+        "404":
+          description: No applicable price found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+
+components:
+  schemas:
+
+    PriceResponse:
+      type: object
+      required:
+        - productId
+        - brandId
+        - priceList
+        - startDate
+        - endDate
+        - price
+      properties:
+        productId:
+          type: integer
+          format: int64
+          example: 35455
+
+        brandId:
+          type: integer
+          format: int64
+          example: 1
+
+        priceList:
+          type: integer
+          format: int64
+          example: 2
+
+        startDate:
+          type: string
+          format: date-time
+          example: "2020-06-14T15:00:00"
+
+        endDate:
+          type: string
+          format: date-time
+          example: "2020-06-14T18:30:00"
+
+        price:
+          type: number
+          format: double
+          example: 25.45
+
+    ApiErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 404
+
+        error:
+          type: string
+          example: Not Found
+
+        message:
+          type: string
+
+        timestamp:
+          type: string
+          format: date-time
