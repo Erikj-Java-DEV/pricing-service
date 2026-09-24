@@ -75,4 +75,45 @@ class PriceControllerIntegrationTest {
                 .param("productId", "35455")
                 .param("brandId", "1"));
     }
+
+
+    @Test
+    void shouldReturnNotFoundWhenNoApplicablePriceExists() throws Exception {
+        mockMvc.perform(get(ENDPOINT)
+                        .param("applicationDate", "2019-06-14T10:00:00")
+                        .param("productId", "35455")
+                        .param("brandId", "1"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenProductIdIsInvalid() throws Exception {
+        mockMvc.perform(get(ENDPOINT)
+                        .param("applicationDate", "2020-06-14T10:00:00")
+                        .param("productId", "0")
+                        .param("brandId", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenApplicationDateIsInvalid() throws Exception {
+        mockMvc.perform(get(ENDPOINT)
+                        .param("applicationDate", "invalid-date")
+                        .param("productId", "35455")
+                        .param("brandId", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
+    void shouldReturnBadRequestWhenRequiredParameterIsMissing() throws Exception {
+        mockMvc.perform(get(ENDPOINT)
+                        .param("applicationDate", "2020-06-14T10:00:00")
+                        .param("productId", "35455"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
 }
