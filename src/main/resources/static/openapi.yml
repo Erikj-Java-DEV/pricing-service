@@ -14,10 +14,10 @@ paths:
         - name: applicationDate
           in: query
           required: true
-          description: Date and time for which the applicable price is requested.
+          description: ISO-8601 local date-time without timezone offset.
           schema:
             type: string
-            format: date-time
+            pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$'
           example: "2020-06-14T16:00:00"
 
         - name: productId
@@ -90,17 +90,16 @@ components:
 
         startDate:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time without timezone offset.
           example: "2020-06-14T15:00:00"
 
         endDate:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time without timezone offset.
           example: "2020-06-14T18:30:00"
 
         price:
           type: number
-          format: double
           example: 25.45
 
     ApiErrorResponse:
@@ -119,4 +118,5 @@ components:
 
         timestamp:
           type: string
-          format: date-time
+          description: ISO-8601 local date-time without timezone offset.
+          example: "2020-06-14T16:00:00"
