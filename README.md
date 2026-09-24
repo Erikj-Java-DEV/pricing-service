@@ -10,7 +10,7 @@ Spring Boot REST API that resolves the applicable price for a product and brand 
 - Spring Data JPA
 - H2
 - Maven
-- JUnit 5
+- JUnit / JUnit Jupiter
 - Mockito
 
 ## Architecture
