@@ -1,4 +1,4 @@
-package com.erikj.pricing_service;
+package com.erikj.pricing;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

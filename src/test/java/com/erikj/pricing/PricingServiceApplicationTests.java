@@ -1,4 +1,4 @@
-package com.erikj.pricing_service;
+package com.erikj.pricing;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
