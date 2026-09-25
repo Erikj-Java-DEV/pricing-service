@@ -2,7 +2,7 @@
 
 REST API developed with Java and Spring Boot to resolve the applicable price for a product and brand at a specific date.
 
-The project has been designed using **Hexagonal Architecture (Ports and Adapters)**, keeping business and application logic independent from frameworks, persistence and HTTP concerns.
+The project uses **Hexagonal Architecture (Ports and Adapters)** to keep business and application logic independent from HTTP, Spring Data JPA and database-specific concerns.
 
 ---
 
@@ -23,9 +23,11 @@ startDate <= applicationDate
 endDate >= applicationDate
 ```
 
-If multiple prices are applicable at the same time, the price with the **highest priority** must be returned.
+If several prices are applicable simultaneously, the price with the **highest priority** must be returned.
 
-The selection is performed directly at database level so that only the required record is retrieved.
+Only one result is returned.
+
+The filtering, priority ordering and result limitation are executed at database level rather than loading multiple records and resolving them in application memory.
 
 ---
 
@@ -34,31 +36,39 @@ The selection is performed directly at database level so that only the required 
 | Technology | Purpose |
 |---|---|
 | Java 21 | Main programming language |
-| Spring Boot 4.1.1 | Application bootstrap and infrastructure configuration |
+| Spring Boot 4.1.1 | Application bootstrap, dependency management and auto-configuration |
 | Spring Web MVC | REST API implementation |
-| Spring Data JPA | Persistence abstraction and database access |
+| Spring Data JPA | Persistence abstraction |
 | Hibernate | JPA implementation |
-| H2 | In-memory database used for the technical exercise |
-| Bean Validation | Validation of HTTP input parameters |
-| Maven | Dependency management, build and test lifecycle |
+| H2 | In-memory relational database required by the exercise |
+| Bean Validation | Validation of incoming HTTP parameters |
+| Maven | Build and dependency management |
 | JUnit / JUnit Jupiter | Unit and integration testing |
-| Mockito | Isolation of dependencies in unit tests |
-| AssertJ | Fluent assertions in unit and persistence tests |
-| MockMvc | HTTP integration testing without starting an external server |
+| Mockito | Isolation of application dependencies in unit tests |
+| AssertJ | Fluent assertions |
+| MockMvc | HTTP integration testing without an external web server |
 | OpenAPI 3 | REST contract documentation |
-| JaCoCo | Test coverage reporting |
+| JaCoCo | Test coverage measurement and reporting |
 
-H2 is used because the exercise explicitly requires an in-memory database and allows the application to start with a deterministic dataset without external infrastructure.
+### Why H2?
 
-Spring Data JPA is used to keep database access inside the persistence adapter while allowing the application core to remain independent from persistence technology.
+The exercise requires an in-memory database.
+
+H2 allows the complete application and test suite to execute without external infrastructure while still exercising a real relational persistence layer.
+
+### Why Spring Data JPA?
+
+Persistence remains behind an output port.
+
+The application layer does not know that Spring Data JPA or H2 are being used. The persistence implementation can therefore be replaced without modifying the application use case.
 
 ---
 
-## Architecture
+# Architecture
 
 The application follows **Hexagonal Architecture**, also known as **Ports and Adapters**.
 
-The main objective is to isolate the application core from external technologies such as HTTP, Spring Data JPA and H2.
+The main objective is to isolate the application core from external technologies.
 
 ```text
                          Infrastructure
@@ -95,7 +105,9 @@ The main objective is to isolate the application core from external technologies
        H2 / JPA
 ```
 
-### Domain
+---
+
+## Domain Layer
 
 ```text
 domain
@@ -107,16 +119,23 @@ The domain contains the business model.
 
 `Price` represents a price independently from:
 
-- HTTP
-- Spring
-- JPA
-- H2
+- HTTP.
+- Spring.
+- Spring Data.
+- JPA.
+- Hibernate.
+- H2.
 
-It also protects basic domain invariants such as mandatory fields and ensuring that `startDate` cannot be after `endDate`.
+The domain also protects basic invariants:
+
+- Mandatory fields cannot be `null`.
+- `startDate` cannot be after `endDate`.
+
+No framework annotations exist in the domain model.
 
 ---
 
-### Application
+## Application Layer
 
 ```text
 application
@@ -127,19 +146,19 @@ application
 └── service
 ```
 
-The application layer contains the use case and its boundaries.
+The application layer contains the business use case and defines the boundaries through which infrastructure interacts with it.
 
-#### Input port
+### Input Port
 
 ```text
 GetApplicablePriceUseCase
 ```
 
-Defines what the application allows external adapters to execute.
+Defines the operation exposed by the application.
 
-The REST controller depends on this interface rather than directly depending on the implementation.
+The REST controller depends on this interface instead of depending directly on the implementation.
 
-#### Application service
+### Application Service
 
 ```text
 GetApplicablePriceService
@@ -147,11 +166,11 @@ GetApplicablePriceService
 
 Implements the use case.
 
-It contains the orchestration required to resolve an applicable price and depends only on the output port.
+Its responsibility is to request the applicable price through the output port and raise an application exception when no result exists.
 
-It does not know whether prices are stored in H2, PostgreSQL, MongoDB or obtained from another service.
+It does not know how or where prices are stored.
 
-#### Output port
+### Output Port
 
 ```text
 LoadApplicablePricePort
@@ -163,7 +182,7 @@ The application service depends on this interface instead of Spring Data JPA.
 
 ---
 
-### Infrastructure
+## Infrastructure Layer
 
 ```text
 infrastructure
@@ -175,9 +194,9 @@ infrastructure
 └── config
 ```
 
-Infrastructure contains framework-specific implementations.
+Infrastructure contains all framework and technology-specific implementations.
 
-#### REST adapter
+### REST Adapter
 
 ```text
 PriceController
@@ -189,12 +208,13 @@ ApiErrorResponse
 Responsibilities:
 
 - Receive HTTP requests.
-- Validate request parameters.
+- Parse the application date.
+- Validate identifiers.
 - Execute the application use case.
-- Convert the domain response into an API DTO.
-- Translate application errors into HTTP responses.
+- Map the domain response to the API representation.
+- Translate application and validation errors into HTTP responses.
 
-#### Persistence adapter
+### Persistence Adapter
 
 ```text
 PricePersistenceAdapter
@@ -205,63 +225,66 @@ PricePersistenceMapper
 
 Responsibilities:
 
-- Implement the application's persistence port.
+- Implement the application output port.
 - Execute the database query.
-- Map persistence entities to domain objects.
-- Keep JPA completely outside the domain and application layers.
+- Apply filtering and priority ordering.
+- Convert the JPA representation into the domain model.
+
+JPA does not leak into the domain or application layers.
 
 ---
 
-## Dependency Direction
+# Dependency Direction
 
-One of the main architectural decisions is that dependencies always point toward the application core.
+Dependencies always point toward the application core.
 
 ```text
-Controller
-    |
-    v
-Input Port
-    |
-    v
-Application Service
-    |
-    v
-Output Port
-    ^
-    |
-Persistence Adapter
+PriceController
+      |
+      v
+GetApplicablePriceUseCase
+      |
+      v
+GetApplicablePriceService
+      |
+      v
+LoadApplicablePricePort
+      ^
+      |
+PricePersistenceAdapter
+      |
+      v
+SpringDataPriceRepository
 ```
 
 The application layer never imports:
 
 ```text
+Spring MVC
 Spring Data JPA
 Hibernate
 H2
-HTTP
-Spring MVC
+HTTP-specific types
 ```
 
-This means infrastructure can be replaced without modifying the business use case.
-
-For example, H2 could be replaced by PostgreSQL while keeping:
+For example, H2 could be replaced by PostgreSQL without changing:
 
 ```text
+Price
 GetApplicablePriceUseCase
 GetApplicablePriceService
 LoadApplicablePricePort
-Price
 ```
 
-unchanged.
+Only the persistence adapter and infrastructure configuration would need to change.
 
 ---
 
-## Model Separation
+# Model Separation
 
-The project deliberately separates the domain, HTTP and persistence representations.
+The project deliberately separates three representations.
 
-### Domain
+## Domain
 
 ```text
 Price
@@ -269,37 +292,35 @@ Price
 
 Represents the business concept.
 
-### REST response
+## REST
 
 ```text
 PriceResponse
 ```
 
-Defines the information exposed through the API.
+Represents the public HTTP response.
 
-### Persistence
+## Persistence
 
 ```text
 PriceJpaEntity
 ```
 
-Represents the relational database model and contains JPA annotations.
+Represents the relational persistence model and contains JPA annotations.
 
-The transformation:
+Persistence mapping:
 
 ```text
 PriceJpaEntity
-        |
-        v
+       |
+       v
 PricePersistenceMapper
-        |
-        v
+       |
+       v
 Price
 ```
 
-prevents persistence concerns from leaking into the domain model.
-
-The API similarly maps:
+HTTP mapping:
 
 ```text
 Price
@@ -308,13 +329,13 @@ Price
 PriceResponse
 ```
 
-This allows the three models to evolve independently.
+This prevents persistence or API concerns from dictating the structure of the domain model.
 
 ---
 
-## Request Flow
+# Complete Request Flow
 
-A complete request follows this path:
+A successful request follows this path:
 
 ```text
 GET /api/v1/prices
@@ -341,22 +362,22 @@ SpringDataPriceRepository
 H2
 ```
 
-The persistence result then travels back through the application and is converted into `PriceResponse`.
+The database result is mapped to `Price`, returned through the application layer and finally converted to `PriceResponse`.
 
 ---
 
-## Price Resolution Strategy
+# Price Resolution Strategy
 
-The database query applies all relevant conditions:
+The persistence query performs the business lookup using:
 
 ```text
-brandId = ?
-productId = ?
+brandId = requested brand
+productId = requested product
 startDate <= applicationDate
 endDate >= applicationDate
 ```
 
-When more than one price is applicable:
+When multiple records match:
 
 ```text
 ORDER BY priority DESC
@@ -364,7 +385,7 @@ ORDER BY priority DESC
 
 is applied.
 
-Only the first result is returned.
+Only the first result is selected.
 
 Conceptually:
 
@@ -379,32 +400,32 @@ ORDER BY priority DESC
 FETCH FIRST 1 ROW ONLY;
 ```
 
-This was deliberately implemented at database level instead of:
+This avoids an implementation such as:
 
 ```text
-loading multiple rows
-→ filtering in Java
-→ sorting in Java
-→ selecting the first one
+load all applicable rows
+→ filter in Java
+→ sort in Java
+→ select first
 ```
 
-which would perform unnecessary work in application memory.
+and keeps extraction efficient by delegating filtering, ordering and limitation to the database.
 
 ---
 
-## API
+# API
 
-### Get applicable price
+## Get Applicable Price
 
 ```http
 GET /api/v1/prices
 ```
 
-### Query parameters
+### Query Parameters
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `applicationDate` | ISO-8601 local date-time | Yes | Date used to resolve the price |
+| `applicationDate` | ISO-8601 local date-time | Yes | Date and time used to resolve the applicable price |
 | `productId` | Long | Yes | Product identifier |
 | `brandId` | Long | Yes | Brand identifier |
 
@@ -414,7 +435,7 @@ Example:
 GET /api/v1/prices?applicationDate=2020-06-14T16:00:00&productId=35455&brandId=1
 ```
 
-Example response:
+Response:
 
 ```json
 {
@@ -429,11 +450,11 @@ Example response:
 
 ---
 
-## Error Handling
+# Error Handling
 
-The API uses a consistent error representation.
+The API uses a consistent JSON error response.
 
-Possible responses include:
+Possible statuses:
 
 ```text
 200 OK
@@ -445,7 +466,7 @@ Applicable price found.
 400 Bad Request
 ```
 
-Invalid parameters, invalid date format or missing required parameters.
+Invalid identifier, invalid date format or missing required parameter.
 
 ```text
 404 Not Found
@@ -453,7 +474,7 @@ Invalid parameters, invalid date format or missing required parameters.
 
 No applicable price exists for the requested product, brand and date.
 
-Example error response:
+Example:
 
 ```json
 {
@@ -464,113 +485,273 @@ Example error response:
 }
 ```
 
+Integration tests verify not only the HTTP status but also the JSON error contract.
+
 ---
 
-## Database
+# Database
 
-The application uses an in-memory H2 database.
+The application uses an embedded H2 database.
 
-Spring Boot automatically configures the embedded database available on the classpath.
-
-The database schema is created from:
+The schema is defined explicitly in:
 
 ```text
 src/main/resources/schema.sql
 ```
 
-and initial data is loaded from:
+Initial exercise data is loaded from:
 
 ```text
 src/main/resources/data.sql
 ```
 
-The dataset contains the four price records defined by the exercise.
+The dataset contains the four price records defined by the technical exercise.
 
-Hibernate schema generation is disabled because the schema is explicitly controlled through `schema.sql`.
+An index is also created for the columns involved in price lookup.
 
 ---
 
-## Testing Strategy
+# Application Configuration
 
-The project separates tests according to their responsibility.
+The configuration is intentionally minimal:
 
-### Domain tests
+```yaml
+spring:
+  application:
+    name: pricing-service
 
-```text
-PriceTest
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
 ```
 
-Verify domain invariants independently from Spring.
+This is deliberate rather than missing configuration.
 
-### Application unit tests
+## H2 auto-configuration
 
-```text
-GetApplicablePriceServiceTest
-```
+No explicit datasource URL, driver, username or password is configured.
 
-Use Mockito to isolate:
+Because H2 is available as a runtime dependency and JDBC/JPA support is present, Spring Boot automatically configures an embedded datasource.
 
-```text
-LoadApplicablePricePort
-```
-
-and test the application use case without loading Spring or a database.
-
-They verify:
-
-- Returning an existing applicable price.
-- Throwing `PriceNotFoundException` when no price exists.
-
-### Persistence tests
+Therefore these properties are intentionally omitted:
 
 ```text
-SpringDataPriceRepositoryTest
+spring.datasource.url
+spring.datasource.driver-class-name
+spring.datasource.username
+spring.datasource.password
 ```
 
-Use an embedded database to verify the actual persistence query.
+This avoids duplicating values that Spring Boot can derive automatically.
 
-They cover:
+It also lets Spring Boot generate a unique embedded database name rather than forcing all application contexts to reuse a manually named in-memory database.
 
-- Highest priority selection.
-- No applicable price.
-- Inclusive `startDate`.
-- Inclusive `endDate`.
-- Brand isolation.
-- Product isolation.
+## SQL initialization
 
-### Integration tests
+No explicit:
 
 ```text
-PriceControllerIntegrationTest
+spring.sql.init.mode
 ```
 
-Use:
+is required.
+
+For an embedded database, Spring Boot's default initialization mode is `embedded`.
+
+Therefore the conventional files:
+
+```text
+schema.sql
+data.sql
+```
+
+are automatically detected and executed.
+
+## `ddl-auto: none`
+
+This property is explicitly configured:
+
+```yaml
+hibernate:
+  ddl-auto: none
+```
+
+because the database schema is owned by:
+
+```text
+schema.sql
+```
+
+Hibernate must therefore not create, modify or drop the schema.
+
+This avoids having two competing schema-generation mechanisms.
+
+## `open-in-view: false`
+
+Spring Boot enables Open EntityManager in View by default for web applications.
+
+This project disables it explicitly:
+
+```yaml
+open-in-view: false
+```
+
+because persistence access is completed inside the persistence/application flow and the REST layer does not require lazy loading.
+
+It also prevents persistence context lifetime from being unnecessarily extended through the HTTP request.
+
+## Other omitted defaults
+
+Properties such as:
+
+```text
+spring.jpa.show-sql=false
+spring.sql.init.mode=embedded
+spring.datasource.generate-unique-name=true
+```
+
+are not repeated because they already represent the desired default behavior.
+
+The configuration therefore contains only settings where this application deliberately changes or fixes behavior.
+
+---
+
+# Testing Strategy
+
+The project uses several testing levels.
+
+The intention is not simply to increase a coverage percentage but to verify behavior at the appropriate architectural boundary.
+
+---
+
+## Domain Tests
+
+### `PriceTest`
+
+Pure Java tests. No Spring context is loaded.
+
+| Test | Purpose |
+|---|---|
+| `shouldRejectPriceWhenStartDateIsAfterEndDate` | Verifies that the domain rejects an invalid validity period |
+| `shouldRejectPriceWhenRequiredFieldIsNull` | Verifies the mandatory-field domain invariant |
+
+These tests ensure domain rules work independently from Spring or persistence.
+
+---
+
+## Application Unit Tests
+
+### `GetApplicablePriceServiceTest`
+
+Uses Mockito and does not load Spring.
+
+| Test | Purpose |
+|---|---|
+| `shouldReturnApplicablePriceWhenPriceExists` | Verifies that the use case returns the price supplied by the output port |
+| `shouldThrowPriceNotFoundExceptionWhenPriceDoesNotExist` | Verifies application behavior when persistence returns no applicable price |
+
+`LoadApplicablePricePort` is mocked so these tests validate only application behavior.
+
+---
+
+## Persistence Tests
+
+### `SpringDataPriceRepositoryTest`
+
+Uses `@DataJpaTest` with an embedded database.
+
+These tests verify the actual repository query rather than mocking persistence.
+
+| Test | Purpose |
+|---|---|
+| `shouldReturnHighestPriorityPriceWhenSeveralPricesAreApplicable` | Verifies that overlapping prices are resolved using the highest priority |
+| `shouldReturnEmptyWhenNoPriceIsApplicable` | Verifies that no result is returned outside all validity periods |
+| `shouldReturnPriceWhenApplicationDateMatchesStartDate` | Verifies that `startDate` is inclusive (`<=`) |
+| `shouldReturnPriceWhenApplicationDateMatchesEndDate` | Verifies that `endDate` is inclusive (`>=`) |
+| `shouldNotReturnPriceFromAnotherBrand` | Verifies isolation by `brandId` |
+| `shouldNotReturnPriceFromAnotherProduct` | Verifies isolation by `productId` |
+
+These tests specifically validate the semantics on which the database query depends.
+
+---
+
+## Integration Tests
+
+### `PriceControllerIntegrationTest`
+
+Uses:
 
 ```java
 @SpringBootTest
 @AutoConfigureMockMvc
 ```
 
-and exercise the complete flow:
+The persistence repository is **not mocked**.
+
+Therefore these tests exercise:
 
 ```text
 HTTP
 → Controller
-→ Application
+→ Input Port
+→ Application Service
+→ Output Port
 → Persistence Adapter
-→ JPA
+→ Spring Data JPA
 → H2
 ```
 
-The five scenarios explicitly required by the exercise are included.
+### Mandatory Exercise Scenarios
 
-Additional integration tests verify invalid input and error responses.
+| Test | Request | Expected tariff |
+|---|---|---|
+| `test1_shouldReturnPriceList1At10OnJune14` | 2020-06-14 10:00 | Price list 1 / 35.50 EUR |
+| `test2_shouldReturnPriceList2At16OnJune14` | 2020-06-14 16:00 | Price list 2 / 25.45 EUR |
+| `test3_shouldReturnPriceList1At21OnJune14` | 2020-06-14 21:00 | Price list 1 / 35.50 EUR |
+| `test4_shouldReturnPriceList3At10OnJune15` | 2020-06-15 10:00 | Price list 3 / 30.50 EUR |
+| `test5_shouldReturnPriceList4At21OnJune16` | 2020-06-16 21:00 | Price list 4 / 38.95 EUR |
+
+Each scenario verifies:
+
+```text
+productId
+brandId
+priceList
+startDate
+endDate
+price
+```
+
+and not merely the HTTP status.
+
+### Error Scenarios
+
+| Test | Purpose |
+|---|---|
+| `shouldReturnNotFoundWhenNoApplicablePriceExists` | Verifies the `404` response when no price is applicable |
+| `shouldReturnBadRequestWhenProductIdIsInvalid` | Verifies validation of a non-positive product identifier |
+| `shouldReturnBadRequestWhenBrandIdIsInvalid` | Verifies validation of a non-positive brand identifier |
+| `shouldReturnBadRequestWhenApplicationDateIsInvalid` | Verifies handling of an invalid date format |
+| `shouldReturnBadRequestWhenRequiredParameterIsMissing` | Verifies handling of a missing required parameter |
+
+The error tests also verify:
+
+```text
+Content-Type
+status
+error
+non-empty message
+timestamp
+```
+
+Exact internal Spring error messages are intentionally not asserted because that would couple tests to framework implementation details.
 
 ---
 
-## Test Coverage
+# Test Coverage
 
-JaCoCo is used to generate a test coverage report.
+JaCoCo is integrated with the Maven build.
 
 Run:
 
@@ -584,48 +765,50 @@ or on Windows:
 .\mvnw.cmd clean verify
 ```
 
-The generated report is available at:
+The HTML report is generated at:
 
 ```text
 target/site/jacoco/index.html
 ```
 
-Coverage is used as a diagnostic tool rather than as a target by itself. Tests are focused on meaningful behavior instead of adding tests solely to increase a percentage.
+JaCoCo is used as a diagnostic tool to detect meaningful untested areas.
+
+The project deliberately does not create trivial tests solely to increase the percentage, nor does it enforce an arbitrary coverage threshold as part of the exercise.
+
+Business rules, persistence behavior, API behavior and error scenarios are prioritized.
 
 ---
 
-## OpenAPI
+# OpenAPI
 
-The REST contract is documented using OpenAPI 3.
+The REST contract is documented using OpenAPI 3:
 
 ```text
 src/main/resources/static/openapi.yml
 ```
 
-It contains:
+It documents:
 
-- Endpoint definition.
+- Endpoint.
 - Request parameters.
 - Validation constraints.
-- Response schema.
+- Success response.
 - Error responses.
-- Request and response examples.
+- Examples.
 
-The `applicationDate` field is documented as an ISO-8601 local date-time without timezone offset because the exercise models dates using `LocalDateTime`.
+`applicationDate` is represented as an ISO-8601 local date-time without timezone offset because the exercise models the date using `LocalDateTime`.
 
 ---
 
-## Running the Application
+# Running the Application
 
-### Requirements
-
-Only a compatible JDK is required.
+## Requirement
 
 ```text
-Java 21+
+Java 21
 ```
 
-The repository includes the Maven Wrapper, so a local Maven installation is not required.
+The Maven Wrapper is included, so installing Maven separately is not required.
 
 ### Windows
 
@@ -639,7 +822,7 @@ The repository includes the Maven Wrapper, so a local Maven installation is not 
 ./mvnw spring-boot:run
 ```
 
-The service starts at:
+The API is available at:
 
 ```text
 http://localhost:8080
@@ -647,7 +830,7 @@ http://localhost:8080
 
 ---
 
-## Running Tests
+# Running the Complete Verification
 
 ### Windows
 
@@ -661,9 +844,11 @@ http://localhost:8080
 ./mvnw clean verify
 ```
 
+This executes the complete test suite and generates the JaCoCo coverage report.
+
 ---
 
-## Project Structure
+# Project Structure
 
 ```text
 com.erikj.pricing
@@ -707,44 +892,55 @@ com.erikj.pricing
 
 ---
 
-## Design Decisions and Trade-offs
+# Design Decisions and Trade-offs
 
-### Hexagonal Architecture
+## Hexagonal Architecture
 
-Hexagonal Architecture was selected to keep the business use case independent from frameworks and infrastructure.
+Hexagonal Architecture introduces several small classes in this exercise, but it provides explicit boundaries between business logic and technical infrastructure.
 
-For such a small exercise this introduces some additional classes, but it demonstrates clear boundaries without introducing unnecessary domain abstractions.
+The implementation intentionally avoids introducing additional abstractions without a concrete need.
 
-### Pragmatic domain model
+## Pragmatic Domain Model
 
-The project uses an explicit domain model but does not introduce artificial abstractions such as:
+The project has an explicit domain model but does not introduce artificial concepts such as:
 
 ```text
 AggregateRoot
+Money
 BrandId
 ProductId
-Money
+PriceListId
 DomainService
 ```
 
-because the current problem does not justify that complexity.
+The current business problem does not justify that complexity.
 
-### Database-side price resolution
+## Database-side Resolution
 
-Filtering and priority selection are delegated to the database because this avoids loading unnecessary records into memory.
+Price filtering, priority ordering and limitation are delegated to the database.
 
-### Separate persistence model
+This minimizes data transfer and application-side processing.
 
-`PriceJpaEntity` is intentionally not used as the domain model. This prevents JPA annotations and persistence details from becoming part of the application core.
+## Separate Persistence Model
 
-### LocalDateTime
+`PriceJpaEntity` is deliberately separated from `Price`.
 
-The exercise provides dates without timezone information, so `LocalDateTime` is used consistently.
+This prevents JPA from becoming part of the domain model and allows persistence to evolve independently.
 
-For a distributed production system where timezone semantics matter, `OffsetDateTime` or `Instant` could be considered depending on the business requirements.
+## LocalDateTime
 
-### H2
+The exercise supplies dates without timezone or offset information.
 
-H2 is appropriate for this exercise because it is explicitly requested and allows deterministic execution without external dependencies.
+For that reason the application consistently uses:
 
-In a production system the persistence adapter could be backed by another relational database without modifying the application ports or domain model.
+```text
+LocalDateTime
+```
+
+In a distributed production system where timezone semantics are relevant, `OffsetDateTime` or `Instant` would be evaluated according to business requirements.
+
+## H2
+
+H2 is explicitly appropriate for this exercise because it provides a real relational database while requiring no external infrastructure.
+
+A production relational database could replace it behind the same output port.
