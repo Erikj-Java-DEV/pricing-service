@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 
 public class PriceNotFoundException extends RuntimeException {
 
+    private static final long serialVersionUID = 1L;
+
     public PriceNotFoundException(
             LocalDateTime applicationDate,
             Long productId,

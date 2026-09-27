@@ -43,6 +43,7 @@ public class PriceJpaEntity {
     private String currency;
 
     protected PriceJpaEntity() {
+        // Required by JPA
     }
 
     public PriceJpaEntity(
@@ -63,10 +64,6 @@ public class PriceJpaEntity {
         this.priority = priority;
         this.price = price;
         this.currency = currency;
-    }
-
-    public Long getId() {
-        return id;
     }
 
     public Long getBrandId() {
