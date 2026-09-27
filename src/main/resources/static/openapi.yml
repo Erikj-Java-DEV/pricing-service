@@ -62,7 +62,6 @@ paths:
 
 components:
   schemas:
-
     PriceResponse:
       type: object
       required:
@@ -104,6 +103,11 @@ components:
 
     ApiErrorResponse:
       type: object
+      required:
+        - status
+        - error
+        - message
+        - timestamp
       properties:
         status:
           type: integer
@@ -115,6 +119,7 @@ components:
 
         message:
           type: string
+          example: No applicable price found for the requested parameters
 
         timestamp:
           type: string

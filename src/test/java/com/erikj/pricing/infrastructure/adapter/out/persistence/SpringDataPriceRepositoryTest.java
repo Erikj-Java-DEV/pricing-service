@@ -12,8 +12,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest
 class SpringDataPriceRepositoryTest {
 
+    private final SpringDataPriceRepository repository;
+
     @Autowired
-    private SpringDataPriceRepository repository;
+    SpringDataPriceRepositoryTest(SpringDataPriceRepository repository) {
+        this.repository = repository;
+    }
 
     @Test
     void shouldReturnHighestPriorityPriceWhenSeveralPricesAreApplicable() {

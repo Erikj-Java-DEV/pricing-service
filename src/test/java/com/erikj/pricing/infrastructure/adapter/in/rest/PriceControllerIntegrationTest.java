@@ -18,8 +18,12 @@ class PriceControllerIntegrationTest {
 
     private static final String ENDPOINT = "/api/v1/prices";
 
+    private final MockMvc mockMvc;
+
     @Autowired
-    private MockMvc mockMvc;
+    PriceControllerIntegrationTest(MockMvc mockMvc) {
+        this.mockMvc = mockMvc;
+    }
 
     @Test
     void test1_shouldReturnPriceList1At10OnJune14() throws Exception {
