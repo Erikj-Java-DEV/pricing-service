@@ -902,13 +902,13 @@ Java 21
 
 The Maven Wrapper is included, so installing Maven separately is not required.
 
-### Windows
+### Windows — Run Application
 
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
 
-### Linux / macOS
+### Linux / macOS — Run Application
 
 ```bash
 ./mvnw spring-boot:run
@@ -924,13 +924,13 @@ http://localhost:8080
 
 ## Running the Complete Verification
 
-### Windows
+### Windows — Verification
 
 ```powershell
 .\mvnw.cmd clean verify
 ```
 
-### Linux / macOS
+### Linux / macOS — Verification
 
 ```bash
 ./mvnw clean verify
